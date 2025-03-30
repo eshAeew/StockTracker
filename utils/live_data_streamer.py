@@ -81,8 +81,8 @@ class LiveDataStreamer:
             # Notify subscribers
             await self._notify_subscribers(tick_data)
             
-            # Pause briefly to simulate real-time (multiple ticks per second)
-            await asyncio.sleep(0.2)  # 5 ticks per second
+            # Pause very briefly to get multiple ticks per second for smoother real-time visuals
+            await asyncio.sleep(0.1)  # 10 ticks per second for more fluid updates
     
     def _initialize_candlestick_data(self):
         """Initialize candlestick data for different timeframes"""

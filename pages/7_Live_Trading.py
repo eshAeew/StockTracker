@@ -364,8 +364,8 @@ def main():
         if st.session_state.auto_refresh:
             status_placeholder = st.empty()
             
-            # Simulate real-time updates
-            for i in range(100):
+            # Provide continuous real-time updates without artificial limits
+            while True:
                 # Only continue if auto-refresh is still enabled
                 if not st.session_state.auto_refresh:
                     break
@@ -406,9 +406,9 @@ def main():
                             delta=None
                         )
                 
-                # Wait for a short time for real-time updates 
-                # Using a shorter delay (0.5 seconds) to make chart updates more frequent and fluid
-                time.sleep(0.5)
+                # Wait briefly between updates to keep the chart refreshing rapidly
+                # Using a very short delay (0.1 seconds) to make candle updates almost continuous
+                time.sleep(0.1)
         
         # Price history table
         with st.expander("Price History"):
