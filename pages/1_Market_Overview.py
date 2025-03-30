@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.data_fetcher import get_nifty_data, get_sensex_data, get_top_gainers_losers, get_market_indices, get_sector_performance
