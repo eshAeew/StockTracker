@@ -157,7 +157,11 @@ def main():
                 start_of_week = start_date - datetime.timedelta(days=start_date.weekday())
                 end_of_period = end_date + datetime.timedelta(days=(6 - end_date.weekday()))
                 
-                all_dates = pd.date_range(start=start_of_week, end=end_of_period)
+                # Convert to pandas Timestamp objects for consistent handling
+                start_of_week_ts = pd.Timestamp(start_of_week)
+                end_of_period_ts = pd.Timestamp(end_of_period)
+                
+                all_dates = pd.date_range(start=start_of_week_ts, end=end_of_period_ts)
                 complete_calendar = pd.DataFrame({'Date': all_dates})
                 complete_calendar['Day'] = complete_calendar['Date'].dt.day_name()
                 complete_calendar['Date_Formatted'] = complete_calendar['Date'].dt.strftime('%b %d')
@@ -172,8 +176,8 @@ def main():
                 # Replace NaN with empty string
                 complete_calendar['Events'] = complete_calendar['Events'].fillna('')
                 
-                # Create weeks
-                complete_calendar['Week'] = (complete_calendar['Date'] - start_of_week).dt.days // 7
+                # Create weeks - use pandas Timestamp for calculation
+                complete_calendar['Week'] = (complete_calendar['Date'] - start_of_week_ts).dt.days // 7
                 
                 # For each week, create a subheader and show that week
                 for week_num, week_data in complete_calendar.groupby('Week'):
