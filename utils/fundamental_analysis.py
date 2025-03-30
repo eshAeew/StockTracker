@@ -180,66 +180,66 @@ def create_financial_ratios_table(symbol):
         ]
     }
     
-    # Create figure with subplots for each category
-    fig = make_subplots(
-        rows=len(categories),
-        cols=1,
-        subplot_titles=list(categories.keys()),
-        vertical_spacing=0.05,
-    )
+    # Create a single figure with a table that includes all categories
+    headers = ['Category', 'Ratio', 'Value']
+    categories_col = []
+    ratios_col = []
+    values_col = []
     
-    # Set row heights based on number of ratios in each category
-    row_heights = [len(ratios_list) * 30 for ratios_list in categories.values()]
-    total_height = sum(row_heights)
-    
-    row_index = 1
+    # Process data for all categories
     for category, ratios_list in categories.items():
         # Filter ratios for this category
-        category_ratios = {key: ratios.get(key) for key in ratios_list if key in ratios}
+        category_ratios = {key: ratios.get(key) for key in ratios_list if key in ratios and ratios.get(key) is not None}
         
         if category_ratios:
-            # Create data for table
-            ratio_names = list(category_ratios.keys())
-            ratio_values = []
+            # Add category as a header row
+            categories_col.append(f"<b>{category}</b>")
+            ratios_col.append("")
+            values_col.append("")
             
+            # Add each ratio in this category
             for name, value in category_ratios.items():
+                categories_col.append("")
+                ratios_col.append(name)
+                
                 # Format percentages
                 if any(metric in name for metric in ['Margin', 'Return', 'Growth', 'Yield', 'Payout']):
                     if value is not None:
-                        ratio_values.append(f"{value:.2f}%")
+                        values_col.append(f"{value:.2f}%")
                     else:
-                        ratio_values.append("N/A")
+                        values_col.append("N/A")
+                elif "Dividend Rate" in name:
+                    if value is not None:
+                        values_col.append(f"₹{value:.2f}")
+                    else:
+                        values_col.append("N/A")
                 else:
                     if value is not None:
-                        ratio_values.append(f"{value:.2f}")
+                        values_col.append(f"{value:.2f}")
                     else:
-                        ratio_values.append("N/A")
-            
-            # Add table
-            fig.add_trace(
-                go.Table(
-                    header=dict(
-                        values=['Ratio', 'Value'],
-                        font=dict(size=12, color='white'),
-                        fill_color='#1E88E5',
-                        align='left'
-                    ),
-                    cells=dict(
-                        values=[ratio_names, ratio_values],
-                        font=dict(size=11),
-                        fill_color='white',
-                        align='left'
-                    )
-                ),
-                row=row_index,
-                col=1
+                        values_col.append("N/A")
+    
+    # Create the table
+    fig = go.Figure(data=[
+        go.Table(
+            header=dict(
+                values=headers,
+                font=dict(size=12, color='white'),
+                fill_color='#1E88E5',
+                align='left'
+            ),
+            cells=dict(
+                values=[categories_col, ratios_col, values_col],
+                font=dict(size=11),
+                fill_color='white',
+                align='left'
             )
-        
-        row_index += 1
+        )
+    ])
     
     # Update layout
     fig.update_layout(
-        height=total_height + 200,  # Add space for headers
+        height=30 * len(categories_col) + 100,  # Add space for headers
         margin=dict(l=20, r=20, t=80, b=20),
         title=f"Financial Ratios - {symbol.replace('.NS', '')}",
         font=dict(
