@@ -27,7 +27,7 @@ if 'timeframe' not in st.session_state:
     st.session_state.timeframe = "1m"  # Default 1 minute
 
 if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = False
+    st.session_state.auto_refresh = True  # Default to auto-refresh on for better live experience
     
 if 'last_update_time' not in st.session_state:
     st.session_state.last_update_time = datetime.now()
@@ -406,8 +406,9 @@ def main():
                             delta=None
                         )
                 
-                # Wait for a short time to simulate real-time
-                time.sleep(1)
+                # Wait for a short time for real-time updates 
+                # Using a shorter delay (0.5 seconds) to make chart updates more frequent and fluid
+                time.sleep(0.5)
         
         # Price history table
         with st.expander("Price History"):
@@ -443,7 +444,12 @@ def main():
             alert_col1, alert_col2 = st.columns(2)
             
             with alert_col1:
-                alert_price = st.number_input("Alert Price (₹)", min_value=0.01, value=latest_close)
+                # Initialize with a default value and update if we have data
+                default_price = 1000.0
+                if not st.session_state.live_data.empty:
+                    default_price = st.session_state.live_data['Close'].iloc[-1]
+                
+                alert_price = st.number_input("Alert Price (₹)", min_value=0.01, value=default_price)
                 alert_condition = st.selectbox("Condition", ["Price rises above", "Price falls below"])
                 
                 if st.button("Set Alert"):
@@ -513,18 +519,24 @@ def main():
             with sim_col1:
                 trade_type = st.selectbox("Trade Type", ["Buy (Long)", "Sell (Short)"])
                 trade_amount = st.number_input("Investment Amount (₹)", min_value=1000, value=10000, step=1000)
-                entry_price = st.number_input("Entry Price (₹)", min_value=0.01, value=latest_close)
+                
+                # Get default price from live data or use a default
+                default_price = 1000.0
+                if not st.session_state.live_data.empty:
+                    default_price = st.session_state.live_data['Close'].iloc[-1]
+                
+                entry_price = st.number_input("Entry Price (₹)", min_value=0.01, value=default_price)
                 
                 take_profit = st.number_input(
                     "Take Profit Price (₹)", 
                     min_value=0.01, 
-                    value=latest_close * 1.05 if trade_type == "Buy (Long)" else latest_close * 0.95
+                    value=default_price * 1.05 if trade_type == "Buy (Long)" else default_price * 0.95
                 )
                 
                 stop_loss = st.number_input(
                     "Stop Loss Price (₹)", 
                     min_value=0.01, 
-                    value=latest_close * 0.95 if trade_type == "Buy (Long)" else latest_close * 1.05
+                    value=default_price * 0.95 if trade_type == "Buy (Long)" else default_price * 1.05
                 )
                 
                 if st.button("Calculate"):

@@ -52,7 +52,8 @@ class LiveDataStreamer:
         """Generate and stream simulated tick data"""
         while self.is_running:
             # Calculate price movement (simulated)
-            price_volatility = self.current_price * 0.0005  # 0.05% volatility per tick
+            # More volatility for a more dramatic live appearance like Olymp Trade
+            price_volatility = self.current_price * 0.001  # 0.1% volatility per tick
             price_change = np.random.normal(0, price_volatility)
             
             # Update price
@@ -109,7 +110,8 @@ class LiveDataStreamer:
         prices = []
         price = self.current_price
         for i in range(100):
-            price_volatility = price * 0.002  # 0.2% volatility between candles
+            # Increased volatility for more dramatic price changes (like Olymp Trade style)
+            price_volatility = price * 0.005  # 0.5% volatility between candles
             price_change = np.random.normal(0, price_volatility)
             price += price_change
             prices.append(price)
