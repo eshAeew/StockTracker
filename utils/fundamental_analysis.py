@@ -261,16 +261,138 @@ def create_income_statement_chart(symbol, period='annual'):
         period (str): 'annual' or 'quarterly'
         
     Returns:
-        plotly.graph_objects.Figure: Income statement chart
+        tuple: (chart figure, table figure)
     """
     # Get income statement data
     income_stmt = get_income_statement(symbol, period)
     
+    # Create empty figures for chart and table
+    chart_fig = go.Figure()
+    table_fig = go.Figure()
+    
     if income_stmt.empty:
-        # Return empty figure with message if no data
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No income statement data available",
+        # Return empty figures with message if no data
+        for fig in [chart_fig, table_fig]:
+            fig.add_annotation(
+                text="No income statement data available",
+                align="center",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                font=dict(size=14),
+            )
+        return chart_fig, table_fig
+    
+    try:
+        # Convert column headers (dates) to strings
+        income_stmt.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in income_stmt.columns]
+        
+        # Select key metrics
+        key_metrics = [
+            'Total Revenue',
+            'Gross Profit',
+            'Operating Income',
+            'Net Income',
+            'EBITDA'
+        ]
+        
+        # Filter for available metrics
+        available_metrics = [metric for metric in key_metrics if metric in income_stmt.index]
+        
+        if not available_metrics:
+            # If none of the key metrics are available, use what we have
+            available_metrics = list(income_stmt.index)[:5]  # First 5 metrics
+        
+        # Create a new DataFrame with only the key metrics
+        chart_data = income_stmt.loc[available_metrics]
+        
+        # Transpose so dates become rows
+        chart_data = chart_data.transpose()
+        chart_data.index = pd.to_datetime(chart_data.index)
+        chart_data = chart_data.sort_index()
+        
+        # Reset index to make Date a column
+        chart_data.reset_index(inplace=True)
+        chart_data.rename(columns={'index': 'Date'}, inplace=True)
+    
+        # Create figure for key metrics over time
+        colors = ['#1E88E5', '#43A047', '#E53935', '#9C27B0', '#FF9800']
+        
+        for i, metric in enumerate(available_metrics):
+            chart_fig.add_trace(
+                go.Bar(
+                    x=chart_data['Date'],
+                    y=chart_data[metric],
+                    name=metric,
+                    marker_color=colors[i % len(colors)]
+                )
+            )
+        
+        # Update layout
+        chart_fig.update_layout(
+            title=f"Income Statement - {symbol.replace('.NS', '')} ({period.capitalize()})",
+            xaxis_title="Date",
+            yaxis_title="Amount (₹)",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            height=500,
+            margin=dict(l=50, r=50, t=80, b=50),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
+        )
+        
+        # Create table with full income statement
+        table_data = income_stmt.copy()
+        
+        # Format numbers
+        for col in table_data.columns:
+            table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
+        
+        table_fig = go.Figure(
+            data=[
+                go.Table(
+                    header=dict(
+                        values=['Metric'] + list(table_data.columns),
+                        font=dict(size=12, color='white'),
+                        fill_color='#1E88E5',
+                        align='left'
+                    ),
+                    cells=dict(
+                        values=[table_data.index] + [table_data[col] for col in table_data.columns],
+                        font=dict(size=11),
+                        fill_color='white',
+                        align=['left'] + ['right'] * len(table_data.columns)
+                    )
+                )
+            ]
+        )
+        
+        table_fig.update_layout(
+            title=f"Detailed Income Statement - {symbol.replace('.NS', '')} ({period.capitalize()})",
+            height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
+            margin=dict(l=20, r=20, t=80, b=20),
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
+        )
+    except Exception as e:
+        print(f"Error creating income statement chart: {e}")
+        chart_fig.add_annotation(
+            text="Error creating income statement chart",
             align="center",
             showarrow=False,
             xref="paper",
@@ -279,115 +401,19 @@ def create_income_statement_chart(symbol, period='annual'):
             y=0.5,
             font=dict(size=14),
         )
-        return fig
-    
-    # Convert column headers (dates) to strings
-    income_stmt.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in income_stmt.columns]
-    
-    # Select key metrics
-    key_metrics = [
-        'Total Revenue',
-        'Gross Profit',
-        'Operating Income',
-        'Net Income',
-        'EBITDA'
-    ]
-    
-    # Filter for available metrics
-    available_metrics = [metric for metric in key_metrics if metric in income_stmt.index]
-    
-    if not available_metrics:
-        # If none of the key metrics are available, use what we have
-        available_metrics = income_stmt.index[:5]  # First 5 metrics
-    
-    # Create a new DataFrame with only the key metrics
-    chart_data = income_stmt.loc[available_metrics]
-    
-    # Transpose so dates become rows
-    chart_data = chart_data.transpose()
-    chart_data.index = pd.to_datetime(chart_data.index)
-    chart_data = chart_data.sort_index()
-    
-    # Reset index to make Date a column
-    chart_data.reset_index(inplace=True)
-    chart_data.rename(columns={'index': 'Date'}, inplace=True)
-    
-    # Create figure for key metrics over time
-    fig = go.Figure()
-    
-    colors = ['#1E88E5', '#43A047', '#E53935', '#9C27B0', '#FF9800']
-    
-    for i, metric in enumerate(available_metrics):
-        fig.add_trace(
-            go.Bar(
-                x=chart_data['Date'],
-                y=chart_data[metric],
-                name=metric,
-                marker_color=colors[i % len(colors)]
-            )
+        
+        table_fig.add_annotation(
+            text="Error creating income statement table",
+            align="center",
+            showarrow=False,
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            font=dict(size=14),
         )
     
-    # Update layout
-    fig.update_layout(
-        title=f"Income Statement - {symbol.replace('.NS', '')} ({period.capitalize()})",
-        xaxis_title="Date",
-        yaxis_title="Amount (₹)",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        height=500,
-        margin=dict(l=50, r=50, t=80, b=50),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
-        )
-    )
-    
-    # Create table with full income statement
-    table_data = income_stmt.copy()
-    
-    # Format numbers
-    for col in table_data.columns:
-        table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
-    
-    table_fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=['Metric'] + list(table_data.columns),
-                    font=dict(size=12, color='white'),
-                    fill_color='#1E88E5',
-                    align='left'
-                ),
-                cells=dict(
-                    values=[table_data.index] + [table_data[col] for col in table_data.columns],
-                    font=dict(size=11),
-                    fill_color='white',
-                    align=['left'] + ['right'] * len(table_data.columns)
-                )
-            )
-        ]
-    )
-    
-    table_fig.update_layout(
-        title=f"Detailed Income Statement - {symbol.replace('.NS', '')} ({period.capitalize()})",
-        height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
-        margin=dict(l=20, r=20, t=80, b=20),
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
-        )
-    )
-    
-    return fig, table_fig
+    return chart_fig, table_fig
 
 
 def create_balance_sheet_chart(symbol, period='annual'):
@@ -399,173 +425,177 @@ def create_balance_sheet_chart(symbol, period='annual'):
         period (str): 'annual' or 'quarterly'
         
     Returns:
-        plotly.graph_objects.Figure: Balance sheet chart
+        tuple: (chart figure, table figure)
     """
     # Get balance sheet data
     balance_sheet = get_balance_sheet(symbol, period)
     
+    # Create empty figures for chart and table
+    chart_fig = go.Figure()
+    table_fig = go.Figure()
+    
     if balance_sheet.empty:
-        # Return empty figure with message if no data
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No balance sheet data available",
-            align="center",
-            showarrow=False,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            font=dict(size=14),
+        # Return empty figures with message if no data
+        for fig in [chart_fig, table_fig]:
+            fig.add_annotation(
+                text="No balance sheet data available",
+                align="center",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                font=dict(size=14),
+            )
+        return chart_fig, table_fig
+    
+    try:
+        # Convert column headers (dates) to strings
+        balance_sheet.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in balance_sheet.columns]
+        
+        # Create asset and liability groups
+        asset_items = [
+            'Total Assets',
+            'Total Current Assets',
+            'Cash And Cash Equivalents',
+            'Inventory',
+            'Net Receivables',
+            'Other Current Assets',
+            'Property Plant Equipment',
+            'Long Term Investments',
+            'Goodwill',
+            'Intangible Assets'
+        ]
+        
+        liability_equity_items = [
+            'Total Liabilities',
+            'Total Current Liabilities',
+            'Accounts Payable',
+            'Short Term Debt',
+            'Other Current Liabilities',
+            'Long Term Debt',
+            'Other Liabilities',
+            'Total Stockholder Equity',
+            'Common Stock',
+            'Retained Earnings'
+        ]
+        
+        # Filter for available items
+        available_assets = [item for item in asset_items if item in balance_sheet.index]
+        available_liabilities = [item for item in liability_equity_items if item in balance_sheet.index]
+        
+        if not available_assets or not available_liabilities:
+            # If key metrics are not available, raise an exception to be caught by the outer try/except
+            raise ValueError("Required balance sheet metrics not available")
+        
+        # Get the most recent date
+        latest_date = balance_sheet.columns[0]
+        
+        # Create data for stacked bar chart
+        assets_data = balance_sheet.loc[available_assets, latest_date].sort_values(ascending=False)
+        liabilities_equity_data = balance_sheet.loc[available_liabilities, latest_date].sort_values(ascending=False)
+        
+        # Assets
+        chart_fig.add_trace(
+            go.Bar(
+                x=['Assets'],
+                y=[assets_data[0]],  # Total assets
+                name='Total Assets',
+                marker_color='#1E88E5'
+            )
         )
-        return fig, fig
-    
-    # Convert column headers (dates) to strings
-    balance_sheet.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in balance_sheet.columns]
-    
-    # Create asset and liability groups
-    asset_items = [
-        'Total Assets',
-        'Total Current Assets',
-        'Cash And Cash Equivalents',
-        'Inventory',
-        'Net Receivables',
-        'Other Current Assets',
-        'Property Plant Equipment',
-        'Long Term Investments',
-        'Goodwill',
-        'Intangible Assets'
-    ]
-    
-    liability_equity_items = [
-        'Total Liabilities',
-        'Total Current Liabilities',
-        'Accounts Payable',
-        'Short Term Debt',
-        'Other Current Liabilities',
-        'Long Term Debt',
-        'Other Liabilities',
-        'Total Stockholder Equity',
-        'Common Stock',
-        'Retained Earnings'
-    ]
-    
-    # Filter for available items
-    available_assets = [item for item in asset_items if item in balance_sheet.index]
-    available_liabilities = [item for item in liability_equity_items if item in balance_sheet.index]
-    
-    if not available_assets or not available_liabilities:
-        # If key metrics are not available, return empty figures with message
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No balance sheet data available",
-            align="center",
-            showarrow=False,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            font=dict(size=14),
-        )
-        return fig, fig
-    
-    # Get the most recent date
-    latest_date = balance_sheet.columns[0]
-    
-    # Create data for stacked bar chart
-    assets_data = balance_sheet.loc[available_assets, latest_date].sort_values(ascending=False)
-    liabilities_equity_data = balance_sheet.loc[available_liabilities, latest_date].sort_values(ascending=False)
-    
-    # Create stacked bar chart
-    fig = go.Figure()
-    
-    # Assets
-    fig.add_trace(
-        go.Bar(
-            x=['Assets'],
-            y=[assets_data[0]],  # Total assets
-            name='Total Assets',
-            marker_color='#1E88E5'
-        )
-    )
-    
-    # Liabilities
-    fig.add_trace(
-        go.Bar(
-            x=['Liabilities & Equity'],
-            y=[liabilities_equity_data[0] if len(liabilities_equity_data) > 0 else 0],  # Total liabilities
-            name='Total Liabilities',
-            marker_color='#E53935'
-        )
-    )
-    
-    # Equity (if available)
-    equity_item = 'Total Stockholder Equity'
-    if equity_item in balance_sheet.index:
-        equity_value = balance_sheet.loc[equity_item, latest_date]
-        fig.add_trace(
+        
+        # Liabilities
+        chart_fig.add_trace(
             go.Bar(
                 x=['Liabilities & Equity'],
-                y=[equity_value],
-                name='Stockholder Equity',
-                marker_color='#43A047'
+                y=[liabilities_equity_data[0] if len(liabilities_equity_data) > 0 else 0],  # Total liabilities
+                name='Total Liabilities',
+                marker_color='#E53935'
             )
         )
-    
-    # Update layout
-    fig.update_layout(
-        title=f"Balance Sheet Overview - {symbol.replace('.NS', '')} ({latest_date})",
-        yaxis_title="Amount (₹)",
-        barmode='stack',
-        height=500,
-        margin=dict(l=50, r=50, t=80, b=50),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
-        )
-    )
-    
-    # Create detailed breakdown figures
-    # Create table with full balance sheet
-    table_data = balance_sheet.copy()
-    
-    # Format numbers
-    for col in table_data.columns:
-        table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
-    
-    table_fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=['Metric'] + list(table_data.columns),
-                    font=dict(size=12, color='white'),
-                    fill_color='#1E88E5',
-                    align='left'
-                ),
-                cells=dict(
-                    values=[table_data.index] + [table_data[col] for col in table_data.columns],
-                    font=dict(size=11),
-                    fill_color='white',
-                    align=['left'] + ['right'] * len(table_data.columns)
+        
+        # Equity (if available)
+        equity_item = 'Total Stockholder Equity'
+        if equity_item in balance_sheet.index:
+            equity_value = balance_sheet.loc[equity_item, latest_date]
+            chart_fig.add_trace(
+                go.Bar(
+                    x=['Liabilities & Equity'],
+                    y=[equity_value],
+                    name='Stockholder Equity',
+                    marker_color='#43A047'
                 )
             )
-        ]
-    )
-    
-    table_fig.update_layout(
-        title=f"Detailed Balance Sheet - {symbol.replace('.NS', '')} ({period.capitalize()})",
-        height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
-        margin=dict(l=20, r=20, t=80, b=20),
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
+        
+        # Update layout
+        chart_fig.update_layout(
+            title=f"Balance Sheet Overview - {symbol.replace('.NS', '')} ({latest_date})",
+            yaxis_title="Amount (₹)",
+            barmode='stack',
+            height=500,
+            margin=dict(l=50, r=50, t=80, b=50),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
         )
-    )
+        
+        # Create detailed breakdown figures
+        # Create table with full balance sheet
+        table_data = balance_sheet.copy()
+        
+        # Format numbers
+        for col in table_data.columns:
+            table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
+        
+        table_fig = go.Figure(
+            data=[
+                go.Table(
+                    header=dict(
+                        values=['Metric'] + list(table_data.columns),
+                        font=dict(size=12, color='white'),
+                        fill_color='#1E88E5',
+                        align='left'
+                    ),
+                    cells=dict(
+                        values=[table_data.index] + [table_data[col] for col in table_data.columns],
+                        font=dict(size=11),
+                        fill_color='white',
+                        align=['left'] + ['right'] * len(table_data.columns)
+                    )
+                )
+            ]
+        )
+        
+        table_fig.update_layout(
+            title=f"Detailed Balance Sheet - {symbol.replace('.NS', '')} ({period.capitalize()})",
+            height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
+            margin=dict(l=20, r=20, t=80, b=20),
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
+        )
+    except Exception as e:
+        print(f"Error creating balance sheet chart: {e}")
+        for fig in [chart_fig, table_fig]:
+            fig.add_annotation(
+                text="Error creating balance sheet visualization",
+                align="center",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                font=dict(size=14),
+            )
     
-    return fig, table_fig
+    return chart_fig, table_fig
 
 
 def create_cash_flow_chart(symbol, period='annual'):
@@ -577,156 +607,171 @@ def create_cash_flow_chart(symbol, period='annual'):
         period (str): 'annual' or 'quarterly'
         
     Returns:
-        plotly.graph_objects.Figure: Cash flow chart
+        tuple: (chart figure, table figure)
     """
     # Get cash flow data
     cash_flow = get_cash_flow(symbol, period)
     
+    # Create empty figures for chart and table
+    chart_fig = go.Figure()
+    table_fig = go.Figure()
+    
     if cash_flow.empty:
-        # Return empty figure with message if no data
-        fig = go.Figure()
-        fig.add_annotation(
-            text="No cash flow data available",
-            align="center",
-            showarrow=False,
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=0.5,
-            font=dict(size=14),
-        )
-        return fig, fig
-    
-    # Convert column headers (dates) to strings
-    cash_flow.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in cash_flow.columns]
-    
-    # Select key metrics
-    key_metrics = [
-        'Operating Cash Flow',
-        'Cash Flow From Investment',
-        'Cash Flow From Financing',
-        'Free Cash Flow',
-        'Change In Cash'
-    ]
-    
-    # Map standard names to possible variations in yfinance data
-    metric_variations = {
-        'Operating Cash Flow': ['Operating Cash Flow', 'Total Cash From Operating Activities'],
-        'Cash Flow From Investment': ['Cash Flow From Investment', 'Total Cash From Investing Activities', 'Total Cashflows From Investing Activities'],
-        'Cash Flow From Financing': ['Cash Flow From Financing', 'Total Cash From Financing Activities', 'Total Cash From Financing Activities'],
-        'Free Cash Flow': ['Free Cash Flow'],
-        'Change In Cash': ['Change In Cash', 'Change In Cash And Cash Equivalents']
-    }
-    
-    # Find available metrics
-    available_metrics = []
-    metric_mapping = {}
-    
-    for standard_name, variations in metric_variations.items():
-        for var in variations:
-            if var in cash_flow.index:
-                available_metrics.append(var)
-                metric_mapping[var] = standard_name
-                break
-    
-    if not available_metrics:
-        # If none of the key metrics are available, use what we have
-        available_metrics = cash_flow.index[:5]  # First 5 metrics
-        for metric in available_metrics:
-            metric_mapping[metric] = metric
-    
-    # Create a new DataFrame with only the key metrics
-    chart_data = cash_flow.loc[available_metrics]
-    
-    # Transpose so dates become rows
-    chart_data = chart_data.transpose()
-    chart_data.index = pd.to_datetime(chart_data.index)
-    chart_data = chart_data.sort_index()
-    
-    # Reset index to make Date a column
-    chart_data.reset_index(inplace=True)
-    chart_data.rename(columns={'index': 'Date'}, inplace=True)
-    
-    # Rename columns to standard names
-    chart_data.rename(columns=metric_mapping, inplace=True)
-    
-    # Create figure for key metrics over time
-    fig = go.Figure()
-    
-    colors = ['#1E88E5', '#E53935', '#43A047', '#9C27B0', '#FF9800']
-    
-    # Use standard names in the chart
-    standard_names = list(set(metric_mapping.values()))
-    
-    for i, metric in enumerate(standard_names):
-        if metric in chart_data.columns:
-            fig.add_trace(
-                go.Bar(
-                    x=chart_data['Date'],
-                    y=chart_data[metric],
-                    name=metric,
-                    marker_color=colors[i % len(colors)]
-                )
+        # Return empty figures with message if no data
+        for fig in [chart_fig, table_fig]:
+            fig.add_annotation(
+                text="No cash flow data available",
+                align="center",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                font=dict(size=14),
             )
+        return chart_fig, table_fig
     
-    # Update layout
-    fig.update_layout(
-        title=f"Cash Flow - {symbol.replace('.NS', '')} ({period.capitalize()})",
-        xaxis_title="Date",
-        yaxis_title="Amount (₹)",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        height=500,
-        margin=dict(l=50, r=50, t=80, b=50),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
-        )
-    )
-    
-    # Create table with full cash flow
-    table_data = cash_flow.copy()
-    
-    # Format numbers
-    for col in table_data.columns:
-        table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
-    
-    table_fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=['Metric'] + list(table_data.columns),
-                    font=dict(size=12, color='white'),
-                    fill_color='#1E88E5',
-                    align='left'
-                ),
-                cells=dict(
-                    values=[table_data.index] + [table_data[col] for col in table_data.columns],
-                    font=dict(size=11),
-                    fill_color='white',
-                    align=['left'] + ['right'] * len(table_data.columns)
-                )
-            )
+    try:
+        # Convert column headers (dates) to strings
+        cash_flow.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in cash_flow.columns]
+        
+        # Select key metrics
+        key_metrics = [
+            'Operating Cash Flow',
+            'Cash Flow From Investment',
+            'Cash Flow From Financing',
+            'Free Cash Flow',
+            'Change In Cash'
         ]
-    )
-    
-    table_fig.update_layout(
-        title=f"Detailed Cash Flow - {symbol.replace('.NS', '')} ({period.capitalize()})",
-        height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
-        margin=dict(l=20, r=20, t=80, b=20),
-        font=dict(
-            family="Roboto, sans-serif",
-            size=12,
-            color="#212121"
+        
+        # Map standard names to possible variations in yfinance data
+        metric_variations = {
+            'Operating Cash Flow': ['Operating Cash Flow', 'Total Cash From Operating Activities'],
+            'Cash Flow From Investment': ['Cash Flow From Investment', 'Total Cash From Investing Activities', 'Total Cashflows From Investing Activities'],
+            'Cash Flow From Financing': ['Cash Flow From Financing', 'Total Cash From Financing Activities', 'Total Cash From Financing Activities'],
+            'Free Cash Flow': ['Free Cash Flow'],
+            'Change In Cash': ['Change In Cash', 'Change In Cash And Cash Equivalents']
+        }
+        
+        # Find available metrics
+        available_metrics = []
+        metric_mapping = {}
+        
+        for standard_name, variations in metric_variations.items():
+            for var in variations:
+                if var in cash_flow.index:
+                    available_metrics.append(var)
+                    metric_mapping[var] = standard_name
+                    break
+        
+        if not available_metrics:
+            # If none of the key metrics are available, use what we have
+            available_metrics = list(cash_flow.index)[:5]  # First 5 metrics
+            for metric in available_metrics:
+                metric_mapping[metric] = metric
+        
+        # Create a new DataFrame with only the key metrics
+        chart_data = cash_flow.loc[available_metrics]
+        
+        # Transpose so dates become rows
+        chart_data = chart_data.transpose()
+        chart_data.index = pd.to_datetime(chart_data.index)
+        chart_data = chart_data.sort_index()
+        
+        # Reset index to make Date a column
+        chart_data.reset_index(inplace=True)
+        chart_data.rename(columns={'index': 'Date'}, inplace=True)
+        
+        # Rename columns to standard names
+        chart_data.rename(columns=metric_mapping, inplace=True)
+        
+        # Use standard names in the chart
+        standard_names = list(set(metric_mapping.values()))
+        
+        colors = ['#1E88E5', '#E53935', '#43A047', '#9C27B0', '#FF9800']
+        
+        for i, metric in enumerate(standard_names):
+            if metric in chart_data.columns:
+                chart_fig.add_trace(
+                    go.Bar(
+                        x=chart_data['Date'],
+                        y=chart_data[metric],
+                        name=metric,
+                        marker_color=colors[i % len(colors)]
+                    )
+                )
+        
+        # Update layout
+        chart_fig.update_layout(
+            title=f"Cash Flow - {symbol.replace('.NS', '')} ({period.capitalize()})",
+            xaxis_title="Date",
+            yaxis_title="Amount (₹)",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            height=500,
+            margin=dict(l=50, r=50, t=80, b=50),
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
         )
-    )
+        
+        # Create table with full cash flow
+        table_data = cash_flow.copy()
+        
+        # Format numbers
+        for col in table_data.columns:
+            table_data[col] = table_data[col].apply(lambda x: format_large_number(x) if pd.notnull(x) else "N/A")
+        
+        table_fig = go.Figure(
+            data=[
+                go.Table(
+                    header=dict(
+                        values=['Metric'] + list(table_data.columns),
+                        font=dict(size=12, color='white'),
+                        fill_color='#1E88E5',
+                        align='left'
+                    ),
+                    cells=dict(
+                        values=[table_data.index] + [table_data[col] for col in table_data.columns],
+                        font=dict(size=11),
+                        fill_color='white',
+                        align=['left'] + ['right'] * len(table_data.columns)
+                    )
+                )
+            ]
+        )
+        
+        table_fig.update_layout(
+            title=f"Detailed Cash Flow - {symbol.replace('.NS', '')} ({period.capitalize()})",
+            height=400 + 30 * len(table_data.index),  # Adjust height based on number of rows
+            margin=dict(l=20, r=20, t=80, b=20),
+            font=dict(
+                family="Roboto, sans-serif",
+                size=12,
+                color="#212121"
+            )
+        )
+    except Exception as e:
+        print(f"Error creating cash flow chart: {e}")
+        for fig in [chart_fig, table_fig]:
+            fig.add_annotation(
+                text="Error creating cash flow visualization",
+                align="center",
+                showarrow=False,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+                font=dict(size=14),
+            )
     
-    return fig, table_fig
+    return chart_fig, table_fig
