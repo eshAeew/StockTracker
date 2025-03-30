@@ -235,9 +235,7 @@ def create_live_chart(data, title="Live Price Chart"):
         transition={
             'duration': 0,  # Instant update
             'easing': 'cubic-in-out'
-        },
-        # Animation frame duration
-        updatemode='afterall'
+        }
     )
     
     return fig
