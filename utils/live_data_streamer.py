@@ -312,20 +312,38 @@ def get_current_candlestick_data(symbol=None, timeframe="1m"):
 def generate_live_data(symbol, timeframe="1m", num_points=100):
     """
     Generate live data for a stock without using websockets
-    This is a simplified version for use within Streamlit
+    This is a simplified version for use within Streamlit with fluid updates
     """
-    # Create a temporary instance for generating data
-    temp_streamer = LiveDataStreamer()
-    temp_streamer.timeframe = timeframe
+    # Create a temporary instance for generating data or reuse existing
+    global live_streamer
     
-    # Generate data synchronously
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(temp_streamer.start_streaming(symbol))
-    loop.close()
+    # Set the timeframe
+    live_streamer.set_timeframe(timeframe)
+    
+    # Make sure we're streaming the correct symbol
+    if not live_streamer.is_running or live_streamer.current_symbol != symbol:
+        # Generate data synchronously
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(live_streamer.start_streaming(symbol))
+        loop.close()
+    else:
+        # Just generate a new tick to update existing data
+        tick_data = {
+            'symbol': symbol,
+            'price': live_streamer.current_price * (1 + np.random.normal(0, 0.0005)),
+            'volume': np.random.randint(100, 1000),
+            'timestamp': datetime.now().timestamp()
+        }
+        
+        # Update the candlestick data with new tick
+        live_streamer._update_candlestick_data(tick_data)
+        
+        # Update current price
+        live_streamer.current_price = tick_data['price']
     
     # Get the data
-    data = temp_streamer.get_current_candlestick_data()
+    data = live_streamer.get_current_candlestick_data()
     
     # Return the requested number of points
     return data.tail(num_points)

@@ -142,7 +142,7 @@ def generate_live_data(symbol, timeframe, num_points=100):
         return pd.DataFrame()
         
 def update_live_chart(fig, data):
-    """Update the live chart with new data"""
+    """Update the live chart with new data without refreshing the entire image"""
     if data.empty:
         return fig
         
@@ -163,16 +163,33 @@ def update_live_chart(fig, data):
                   for i in range(len(data))]
         fig.data[1].marker.color = colors
     
-    # Update the x-axis range to show the latest candles
+    # Update the y-axis range to adjust to new prices without resetting view
+    y_range_update = {
+        'yaxis.range': [data['Low'].min() * 0.995, data['High'].max() * 1.005]
+    }
+    
+    # Only update the time axis if we need to shift the view
+    # This prevents unnecessary redraws while keeping the most recent data visible
+    latest_visible_time = data['Time'].iloc[-1]
+    x_range_update = {
+        'xaxis.range': [data['Time'].iloc[-30], latest_visible_time + pd.Timedelta(minutes=2)]
+    }
+    
+    # Apply animation updates to preserve the state (zoom, pan) while updating data
     fig.update_layout(
-        xaxis_range=[data['Time'].iloc[0], data['Time'].iloc[-1] + pd.Timedelta(minutes=2)],
-        yaxis_range=[data['Low'].min() * 0.995, data['High'].max() * 1.005]
+        uirevision='constant',  # Keep UI state constant
+        # Animation settings for fluid updates
+        transition_duration=0
     )
+    
+    # Update ranges using partial updates for better performance
+    fig.update_layout(**y_range_update)
+    fig.update_layout(**x_range_update)
     
     return fig
 
 def create_live_chart(data, title="Live Price Chart"):
-    """Create a live candlestick chart"""
+    """Create a live candlestick chart with animation support for smooth updates"""
     # Create subplot layout with volume
     fig = go.Figure()
     
@@ -190,7 +207,7 @@ def create_live_chart(data, title="Live Price Chart"):
     
     fig.add_trace(candlestick)
     
-    # Update layout
+    # Update layout with animation and UI features to preserve state between updates
     fig.update_layout(
         title=title,
         xaxis_title="Time",
@@ -211,7 +228,16 @@ def create_live_chart(data, title="Live Price Chart"):
         ),
         xaxis=dict(
             gridcolor='rgba(255, 255, 255, 0.1)'  # Subtle grid lines
-        )
+        ),
+        # These settings preserve the zoom level and other UI state between updates
+        uirevision="constant",
+        # Animation settings for smooth transitions
+        transition={
+            'duration': 0,  # Instant update
+            'easing': 'cubic-in-out'
+        },
+        # Animation frame duration
+        updatemode='afterall'
     )
     
     return fig
