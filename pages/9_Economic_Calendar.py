@@ -131,11 +131,18 @@ def main():
             
             if not filtered_events.empty:
                 # Pivot the data for calendar view
-                # Group events by date and create a combined description
-                calendar_data = filtered_events.groupby('Date').apply(
+                # Convert date column to string for stable grouping
+                filtered_events_copy = filtered_events.copy()
+                filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].dt.strftime('%Y-%m-%d')
+                
+                # Group events by date string and create a combined description
+                calendar_data = filtered_events_copy.groupby('Date_Str').apply(
                     lambda x: ", ".join(x['Event'].astype(str))
                 ).reset_index()
-                calendar_data.columns = ['Date', 'Events']
+                calendar_data.columns = ['Date_Str', 'Events']
+                
+                # Convert back to datetime for calendar view
+                calendar_data['Date'] = pd.to_datetime(calendar_data['Date_Str'])
                 
                 # Create calendar visualization
                 # We'll use a simple table for now
@@ -235,7 +242,10 @@ def main():
         # Show events that have the highest potential market impact
         if not filtered_events.empty:
             # Create a heatmap showing event concentration
-            event_counts = filtered_events.groupby(['Date', 'Type']).size().unstack().fillna(0)
+            # Convert date to string for stable groupby operation
+            filtered_events_copy = filtered_events.copy()
+            filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].dt.strftime('%Y-%m-%d')
+            event_counts = filtered_events_copy.groupby(['Date_Str', 'Type']).size().unstack().fillna(0)
             
             if not event_counts.empty and len(event_counts.columns) > 0:
                 fig = px.imshow(
@@ -551,8 +561,14 @@ def filter_events(df, event_types, countries, importance_levels):
     if importance_levels:
         filtered_df = filtered_df[filtered_df['Importance'].isin(importance_levels)]
     
-    # Sort by date and time
-    filtered_df = filtered_df.sort_values(['Date', 'Time'])
+    # Convert dates to strings for stable sorting
+    filtered_df['Date_Str'] = filtered_df['Date'].dt.strftime('%Y-%m-%d')
+    
+    # Sort by date string and time
+    filtered_df = filtered_df.sort_values(['Date_Str', 'Time'])
+    
+    # Drop the temporary sort column
+    filtered_df = filtered_df.drop('Date_Str', axis=1)
     
     return filtered_df
 
