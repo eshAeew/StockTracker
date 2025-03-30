@@ -131,9 +131,13 @@ def main():
             
             if not filtered_events.empty:
                 # Pivot the data for calendar view
-                # Convert date column to string for stable grouping
+                # Make a copy and ensure Date is datetime type
                 filtered_events_copy = filtered_events.copy()
-                filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].dt.strftime('%Y-%m-%d')
+                if not pd.api.types.is_datetime64_any_dtype(filtered_events_copy['Date']):
+                    filtered_events_copy['Date'] = pd.to_datetime(filtered_events_copy['Date'])
+                
+                # Convert date column to string for stable grouping
+                filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].astype(str).str.split(' ').str[0]
                 
                 # Group events by date string and create a combined description
                 calendar_data = filtered_events_copy.groupby('Date_Str').apply(
@@ -215,6 +219,12 @@ def main():
                 
                 # Format the date for display
                 formatted_events = high_impact_events.copy()
+                
+                # Make sure Date is datetime type for formatting
+                if not pd.api.types.is_datetime64_any_dtype(formatted_events['Date']):
+                    formatted_events['Date'] = pd.to_datetime(formatted_events['Date'])
+                
+                # Now safe to format
                 formatted_events['Date'] = formatted_events['Date'].dt.strftime('%b %d, %Y')
                 
                 st.table(formatted_events[display_cols])
@@ -242,9 +252,13 @@ def main():
         # Show events that have the highest potential market impact
         if not filtered_events.empty:
             # Create a heatmap showing event concentration
-            # Convert date to string for stable groupby operation
+            # Make a copy and ensure Date is datetime type
             filtered_events_copy = filtered_events.copy()
-            filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].dt.strftime('%Y-%m-%d')
+            if not pd.api.types.is_datetime64_any_dtype(filtered_events_copy['Date']):
+                filtered_events_copy['Date'] = pd.to_datetime(filtered_events_copy['Date'])
+            
+            # Convert date to string for stable groupby operation
+            filtered_events_copy['Date_Str'] = filtered_events_copy['Date'].astype(str).str.split(' ').str[0]
             event_counts = filtered_events_copy.groupby(['Date_Str', 'Type']).size().unstack().fillna(0)
             
             if not event_counts.empty and len(event_counts.columns) > 0:
@@ -279,7 +293,15 @@ def main():
             if not critical_events.empty:
                 for _, event in critical_events.iterrows():
                     with st.container():
-                        st.markdown(f"**{event['Date'].strftime('%b %d, %Y')} - {event['Event']}**")
+                        # Convert date to datetime if needed
+                        if not pd.api.types.is_datetime64_any_dtype(event['Date']):
+                            date = pd.to_datetime(event['Date'])
+                        else:
+                            date = event['Date']
+                        
+                        # Format the date
+                        date_str = date.strftime('%b %d, %Y')
+                        st.markdown(f"**{date_str} - {event['Event']}**")
                         st.markdown(f"{event['Country']} | {event['Type']}")
                         st.markdown(f"Previous: {event['Previous']} | Forecast: {event['Forecast']}")
                         st.markdown("---")
@@ -561,8 +583,12 @@ def filter_events(df, event_types, countries, importance_levels):
     if importance_levels:
         filtered_df = filtered_df[filtered_df['Importance'].isin(importance_levels)]
     
-    # Convert dates to strings for stable sorting
-    filtered_df['Date_Str'] = filtered_df['Date'].dt.strftime('%Y-%m-%d')
+    # Make sure Date is datetime type
+    if 'Date' in filtered_df.columns and not pd.api.types.is_datetime64_any_dtype(filtered_df['Date']):
+        filtered_df['Date'] = pd.to_datetime(filtered_df['Date'])
+    
+    # Create string representation of dates for stable sorting
+    filtered_df['Date_Str'] = filtered_df['Date'].astype(str).str.split(' ').str[0]
     
     # Sort by date string and time
     filtered_df = filtered_df.sort_values(['Date_Str', 'Time'])
