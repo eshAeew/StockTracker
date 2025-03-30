@@ -4,8 +4,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from utils.data_fetcher import get_stock_data, get_stock_info, get_top_stocks_list, search_stocks
-from utils.chart_utils import create_line_chart, create_pie_chart
+from utils.data_fetcher import get_stock_data, get_stock_info, get_top_stocks_list, search_stocks, get_financial_ratios
+from utils.chart_utils import create_line_chart, create_pie_chart, create_candlestick_chart
+from plotly.subplots import make_subplots
 
 st.set_page_config(
     page_title="Portfolio Tracker | Indian Stock Market Analysis",
